@@ -1,0 +1,14 @@
+{
+  "applets": [{
+    "lastAccessTime": "2025-06-05T02:21:17.604243Z",
+    "firstAccessTime": "2025-05-23T19:22:37.014076Z",
+    "source": {
+      "drive": {
+        "resourceId": "1FJptq0vNx5y_A2zYbGS7-MPJuvKEZdHv",
+        "revisionId": "0B1L8SM4PyULSSUhRc0lsMFh4T1FlMi9MYkdIZ2dUT2lGUzdNPQ"
+      }
+    },
+    "name": "Optiverse AI Agency",
+    "description": "A modern landing page for Optiverse AI Agency, showcasing services, workflow, testimonials, pricing, and contact information."
+  }]
+}
