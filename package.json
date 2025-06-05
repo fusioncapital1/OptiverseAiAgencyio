@@ -1,43 +1,29 @@
 {
-  "name": "optiverseaiagencyio",
-  "version": "0.1.0",
+  "name": "optiverse-ai-agency",
   "private": true,
-  "dependencies": {
-    "react": "^18.2.0",          // Or your specific React version
-    "react-dom": "^18.2.0",      // Or your specific ReactDOM version
-    "typescript": "^4.9.5"     // Or your specific TypeScript version
-    // Add other dependencies your project uses here, e.g.:
-    // "axios": "^1.0.0",
-    // "@mui/material": "^5.0.0",
-  },
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "start": "echo 'Start script not yet defined, e.g., react-scripts start or vite'",
-    "build": "echo 'Build script not yet defined, e.g., react-scripts build or tsc && vite build'",
-    "test": "echo 'Test script not yet defined'"
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+  "dependencies": {
+    "@google/genai": "^1.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    // Add development dependencies here, e.g.:
-    // "@types/react": "^18.0.0",
-    // "@types/react-dom": "^18.0.0",
-    // "vite": "^4.0.0", (if using Vite)
-    // "react-scripts": "5.0.1" (if using Create React App)
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.13.0",
+    "@typescript-eslint/parser": "^7.13.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.7",
+    "typescript": "^5.4.5",
+    "vite": "^5.3.1"
   }
 }
