@@ -1,0 +1,43 @@
+{
+  "name": "optiverseaiagencyio",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",          // Or your specific React version
+    "react-dom": "^18.2.0",      // Or your specific ReactDOM version
+    "typescript": "^4.9.5"     // Or your specific TypeScript version
+    // Add other dependencies your project uses here, e.g.:
+    // "axios": "^1.0.0",
+    // "@mui/material": "^5.0.0",
+  },
+  "scripts": {
+    "start": "echo 'Start script not yet defined, e.g., react-scripts start or vite'",
+    "build": "echo 'Build script not yet defined, e.g., react-scripts build or tsc && vite build'",
+    "test": "echo 'Test script not yet defined'"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    // Add development dependencies here, e.g.:
+    // "@types/react": "^18.0.0",
+    // "@types/react-dom": "^18.0.0",
+    // "vite": "^4.0.0", (if using Vite)
+    // "react-scripts": "5.0.1" (if using Create React App)
+  }
+}
