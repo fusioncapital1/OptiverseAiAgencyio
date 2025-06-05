@@ -1,8 +1,0 @@
-OptiverseAiAgency/
-├── App.tsx
-├── Dockerfile  <---- THIS IS THE CORRECT NAME AND LOCATION
-├── README.md
-├── index.html
-├── package.json
-├── src/
-└── ... (other files and folders)
