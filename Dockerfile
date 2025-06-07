@@ -32,8 +32,8 @@ WORKDIR /usr/share/nginx/html
 RUN rm -rf ./*
 
 # Copy static assets from the 'builder' stage
-# IMPORTANT: Adjust '/usr/src/app/build' if your build script outputs to a different directory (e.g., 'dist')
-COPY --from=builder /usr/src/app/build .
+# IMPORTANT: Vite's default output directory is 'dist'.
+COPY --from=builder /usr/src/app/dist .  # <--- THIS LINE IS CHANGED (build to dist)
 
 # Expose port 80 for Nginx
 EXPOSE 80
