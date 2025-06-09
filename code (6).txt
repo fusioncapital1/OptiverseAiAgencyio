@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ESNext", // Or "ES2020", "ES2021", etc. depending on your target browsers
+    "useDefineForClassFields": true,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler", // Or "node" if "bundler" causes issues with older setups
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true, // Vite handles the emitting of JS files, tsc is mainly for type checking
+    "jsx": "react-jsx", // Or "preserve" if your Vite config handles JSX transform differently
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* For the 'process' error */
+    "types": ["vite/client", "node"] // "vite/client" for Vite types, "node" for Node.js global types like 'process'
+  },
+  "include": ["src"], // Tells TypeScript to only check files in the 'src' directory
+  "references": [{ "path": "./tsconfig.node.json" }] // Often used for Vite's own config files if they are TS
+}
