@@ -1,0 +1,755 @@
+
+{
+  "name": "Optiverse AI - Ella Advanced Chat Assistant (Google Sheets Version)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "webhook/optiverse/ella-chat",
+        "responseMode": "usingRespondToWebhookNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "name": "Webhook: Receive User Message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "YOUR_ELLA_CHAT_N8N_WEBHOOK_ID_WILL_BE_GENERATED_HERE"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "userMessage",
+              "value": "={{$json.body.message}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set User Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "YOUR_GEMINI_API_ENDPOINT_URL",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GEMINI_API_KEY_OR_SERVICE_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "mode": "raw",
+          "rawModeData": "={{ JSON.stringify({\n  model: 'gemini-2.5-flash-preview-04-17',\n  contents: $evaluateExpression($('Set User Message').item.json.userMessage),\n  config: {\n    systemInstruction: \"You are Ella, a friendly, professional, and highly capable AI assistant for Optiverse AI Agency. Your primary goal is to assist users by providing information about our services (AI Video Automation, Social Media Mastery, SEO-Optimized Content, Workflow Automation using n8n). You can also discuss pricing and help users contact us. NEW CAPABILITIES: You can now also help with: 1. Scheduling meetings (Google Calendar): Look for dates, times, durations, summaries, attendees. 2. Adding data to Google Sheets: Identify data and target sheet/spreadsheet. 3. Sending messages via Slack: Look for message content and channel/user. 4. Sending messages via WhatsApp (experimental): Look for message content and recipient. 5. Narrating stories: If a user asks you to tell a story, narrate a story, or similar, identify this. You can narrate stories of various genres like inspirational, sci-fi, revenge, fantasy, comedy, or others that you find in your story database (a Google Sheet). Respond with a JSON object: { \\\"intent\\\": \\\"CLASSIFIED_INTENT\\\", \\\"parameters\\\": { /* relevant parameters, e.g., 'genre' for NARRATE_STORY if specified by user */ }, \\\"replyForUser\\\": \\\"Your natural language response.\\\" }. Example intents: GENERAL_QUERY, SCHEDULE_MEETING, ADD_TO_SHEET, SEND_SLACK_MESSAGE, SEND_WHATSAPP_MESSAGE, NARRATE_STORY, UNKNOWN_INTENT. For NARRATE_STORY, parameters can include 'genre' if specified. 'replyForUser' for NARRATE_STORY should be something like 'Sure, let me find a captivating story for you...' or 'Alright, here is a story of that kind:'. For other actions, 'replyForUser' is a confirmation. For general query, 'replyForUser' is direct answer. For UNKNOWN_INTENT, use 'replyForUser' to ask for clarification. Today's date is {{new Date().toISOString()}}. Be concise and helpful.\"\n  }\n}) }}"
+        },
+        "options": {
+          "response": {
+            "fullResponse": false,
+            "responseFormat": "json"
+          },
+          "timeout": 120000
+        }
+      },
+      "name": "Call Gemini for Intent & Params",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        600,
+        300
+      ],
+      "notes": "This node calls your Gemini API endpoint.\nExpected output is JSON: {intent, parameters, replyForUser}"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "geminiResponse",
+              "value": "={{ $json.text || ($json.data && typeof $json.data === 'string' ? $json.data : ($json.data && $json.data.text ? $json.data.text : '{}')) }}"
+            }
+          ],
+          "boolean": [
+            {
+              "name": "geminiCallFailed",
+              "value": "={{ !$json.text && !($json.data && $json.data.text) }}"
+            }
+          ]
+        },
+        "options": {
+          "parseJson": true
+        }
+      },
+      "name": "Parse Gemini Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        300
+      ],
+      "notes": "Parses the JSON string from Gemini's response text field."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "operator": "and",
+          "conditions": [
+            {
+              "boolean": [
+                {
+                  "value1": "={{ $('Parse Gemini Response').item.json.geminiCallFailed }}",
+                  "operation": "false"
+                }
+              ]
+            },
+            {
+              "string": [
+                {
+                  "value1": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).intent }}",
+                  "operation": "equal",
+                  "value2": "NARRATE_STORY"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "name": "IF Intent: Narrate Story",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        -70
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getMany",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID_FOR_STORIES",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Stories",
+          "mode": "url"
+        },
+        "limit": 1,
+        "filters": {
+            "conditions": [
+                {
+                    "keyName": "Status", // Assuming a column named 'Status'
+                    "condition": "eq",
+                    "keyValue": "ready_for_narration"
+                },
+                {
+                    "keyName": "Genre", // Assuming a column named 'Genre'
+                    "condition": "eq",
+                    "keyValue": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.genre || undefined }}", // Filter by genre if present, else no genre filter (fetches any)
+                    "disabled": "={{ !JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.genre }}"
+                }
+            ]
+        },
+        "options": {
+          "returnAll": false, // Only want one story
+          "raw": false // Get formatted values
+        }
+      },
+      "name": "Google Sheets: Get Story Text",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        -70
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID_STORIES",
+          "name": "Google Sheets Stories Credential"
+        }
+      },
+      "notes": "Fetches a story from 'Stories' Google Sheet. \nSheet should have columns like 'StoryID', 'Title', 'Genre', 'StoryText', 'Status'.\nSet YOUR_GOOGLE_SHEET_ID_FOR_STORIES and credentials."
+    },
+    {
+      "parameters": {
+        "conditions": {
+            "operator": "and",
+            "conditions": [
+                {
+                    "number": [
+                        {
+                            "value1": "={{ $items('Google Sheets: Get Story Text').length }}",
+                            "operation": "larger",
+                            "value2": 0
+                        }
+                    ]
+                }
+            ]
+        }
+      },
+      "name": "IF Story Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        -70
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://texttospeech.googleapis.com/v1/text:synthesize?key=YOUR_GOOGLE_CLOUD_TTS_API_KEY",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "mode": "raw",
+          "rawModeData": "={{ JSON.stringify({ input: { text: $('Google Sheets: Get Story Text').item.json.StoryText }, voice: { languageCode: 'en-US', name: 'en-US-Wavenet-D' }, audioConfig: { audioEncoding: 'MP3' } }) }}"
+        },
+        "options": {
+          "response": {
+            "responseFormat": "json"
+          }
+        }
+      },
+      "name": "TTS: Convert Story to Speech",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1600,
+        -70
+      ],
+      "notes": "Calls Google Cloud TTS API. Replace YOUR_GOOGLE_CLOUD_TTS_API_KEY. Assumes story text is in 'StoryText' column from Google Sheets node."
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "audioData",
+              "value": "={{ $json.audioContent }}"
+            },
+            {
+              "name": "storyText",
+              "value": "={{ $('Google Sheets: Get Story Text').item.json.StoryText }}"
+            },
+            {
+               "name": "narrationReply",
+               "value": "Here is a story for you:"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Narration Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        1800,
+        -70
+      ]
+    },
+     {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+               "name": "narrationReply",
+               "value": "Sorry, I couldn't find a story to narrate at the moment. Please try again later."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set No Story Found Reply",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        1600,
+        -170
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "operator": "and",
+          "conditions": [
+            {
+              "boolean": [
+                {
+                  "value1": "={{ $('Parse Gemini Response').item.json.geminiCallFailed }}",
+                  "operation": "false"
+                }
+              ]
+            },
+            {
+              "string": [
+                {
+                  "value1": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).intent }}",
+                  "operation": "equal",
+                  "value2": "SCHEDULE_MEETING"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "name": "IF Intent: Schedule Meeting",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "calendarId": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.calendarId || 'primary' }}",
+        "summary": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.summary }}",
+        "startDateTime": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.startTime }}",
+        "endDateTime": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.endTime }}",
+        "description": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.description }}",
+        "additionalFields": {
+          "attendees": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.attendees }}"
+        },
+        "options": {
+          "sendUpdates": "all"
+        }
+      },
+      "name": "Google Calendar: Create Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        80
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "YOUR_GOOGLE_CALENDAR_OAUTH_CREDENTIAL_ID",
+          "name": "Google Calendar Credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "actionConfirmation",
+              "value": "={{ `OK, I've scheduled '${JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.summary}' for you.` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Calendar Confirmation",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        1400,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "operator": "and",
+          "conditions": [
+             {
+              "boolean": [
+                {
+                  "value1": "={{ $('Parse Gemini Response').item.json.geminiCallFailed }}",
+                  "operation": "false"
+                }
+              ]
+            },
+            {
+              "string": [
+                {
+                  "value1": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).intent }}",
+                  "operation": "equal",
+                  "value2": "ADD_TO_SHEET"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "name": "IF Intent: Add to Sheet",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        230
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.spreadsheetId || 'YOUR_DEFAULT_SPREADSHEET_ID_OR_URL' }}",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.sheetName || 'YOUR_DEFAULT_SHEET_NAME' }}",
+          "mode": "url"
+        },
+        "columns": {
+          "mappingMode": "passThrough",
+          "value": {},
+          "rawData": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.rowData }}"
+        },
+        "options": {
+          "valueInputMode": "RAW"
+        }
+      },
+      "name": "Google Sheets: Append Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        230
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_OAUTH_CREDENTIAL_ID",
+          "name": "Google Sheets Credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "actionConfirmation",
+              "value": "Alright, I've added that to the spreadsheet."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Sheet Confirmation",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        1400,
+        230
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "operator": "and",
+          "conditions": [
+             {
+              "boolean": [
+                {
+                  "value1": "={{ $('Parse Gemini Response').item.json.geminiCallFailed }}",
+                  "operation": "false"
+                }
+              ]
+            },
+            {
+              "string": [
+                {
+                  "value1": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).intent }}",
+                  "operation": "equal",
+                  "value2": "SEND_SLACK_MESSAGE"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "name": "IF Intent: Send Slack Message",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "text": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.text }}",
+        "channel": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.channel }}",
+        "options": {}
+      },
+      "name": "Slack: Send Message",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        380
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack Credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "actionConfirmation",
+              "value": "={{ `Message sent to Slack channel: ${JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.channel}` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Slack Confirmation",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        1400,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "operator": "and",
+          "conditions": [
+             {
+              "boolean": [
+                {
+                  "value1": "={{ $('Parse Gemini Response').item.json.geminiCallFailed }}",
+                  "operation": "false"
+                }
+              ]
+            },
+            {
+              "string": [
+                {
+                  "value1": "={{ JSON.parse($('Parse Gemini Response').item.json.geminiResponse).intent }}",
+                  "operation": "equal",
+                  "value2": "SEND_WHATSAPP_MESSAGE"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "name": "IF Intent: Send WhatsApp Msg (Placeholder)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        530
+      ]
+    },
+    {
+      "parameters": {
+        "url": "YOUR_WHATSAPP_API_ENDPOINT_URL",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_WHATSAPP_API_TOKEN"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "mode": "raw",
+          "rawModeData": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.recipientPhoneNumber, type: 'text', text: { body: JSON.parse($('Parse Gemini Response').item.json.geminiResponse).parameters.text } }) }}"
+        },
+        "options": {}
+      },
+      "name": "HTTP Request: Send WhatsApp (Placeholder)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1200,
+        530
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "actionConfirmation",
+              "value": "Message queued for WhatsApp delivery."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set WhatsApp Confirmation",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        1400,
+        530
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "finalReply",
+              "value": "={{ $json.actionConfirmation || $('Set Narration Data').item.json.narrationReply || $('Set No Story Found Reply').item.json.narrationReply || ($('Parse Gemini Response').item.json.geminiCallFailed ? 'Sorry, I had trouble understanding that or connecting to my brain. Could you try rephrasing?' : JSON.parse($('Parse Gemini Response').item.json.geminiResponse).replyForUser || 'I received your message, but I am not sure how to respond.') }}"
+            },
+            {
+                "name": "audioData",
+                "value": "={{ $('Set Narration Data').item.json.audioData }}"
+            },
+            {
+                "name": "storyText",
+                "value": "={{ $('Set Narration Data').item.json.storyText }}"
+            }
+          ]
+        },
+        "options": {
+          "keepOnlySet": true
+        }
+      },
+      "name": "Set Final Reply",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        300
+      ],
+      "notes": "Prioritizes action confirmation or narration data, otherwise uses Gemini's direct reply or a fallback."
+    },
+    {
+      "parameters": {
+        "data": "={{ JSON.stringify({ reply: $('Set Final Reply').item.json.finalReply, audioData: $('Set Final Reply').item.json.audioData, storyText: $('Set Final Reply').item.json.storyText }) }}",
+        "options": {
+          "responseCode": 200,
+          "responseContentType": "application/json"
+        }
+      },
+      "name": "Respond with AI Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook: Receive User Message": {"main": [[{"node": "Set User Message","type": "main","index": 0}]]},
+    "Set User Message": {"main": [[{"node": "Call Gemini for Intent & Params","type": "main","index": 0}]]},
+    "Call Gemini for Intent & Params": {"main": [[{"node": "Parse Gemini Response","type": "main","index": 0}]]},
+    "Parse Gemini Response": {
+      "main": [
+        [{"node": "IF Intent: Schedule Meeting", "type": "main", "index": 0}],
+        [{"node": "IF Intent: Add to Sheet", "type": "main", "index": 0}],
+        [{"node": "IF Intent: Send Slack Message", "type": "main", "index": 0}],
+        [{"node": "IF Intent: Send WhatsApp Msg (Placeholder)", "type": "main", "index": 0}],
+        [{"node": "IF Intent: Narrate Story", "type": "main", "index": 0}],
+        [{"node": "Set Final Reply", "type": "main", "index": 0}]
+      ]
+    },
+    "IF Intent: Schedule Meeting": {
+      "main": [
+        [{"node": "Google Calendar: Create Event","type": "main","index": 0}],
+        [{"node": "Set Final Reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "Google Calendar: Create Event": {"main": [[{"node": "Set Calendar Confirmation","type": "main","index": 0}]]},
+    "Set Calendar Confirmation": {"main": [[{"node": "Set Final Reply","type": "main","index": 0}]]},
+    "IF Intent: Add to Sheet": {
+      "main": [
+        [{"node": "Google Sheets: Append Row","type": "main","index": 0}],
+        [{"node": "Set Final Reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "Google Sheets: Append Row": {"main": [[{"node": "Set Sheet Confirmation","type": "main","index": 0}]]},
+    "Set Sheet Confirmation": {"main": [[{"node": "Set Final Reply","type": "main","index": 0}]]},
+    "IF Intent: Send Slack Message": {
+      "main": [
+        [{"node": "Slack: Send Message","type": "main","index": 0}],
+        [{"node": "Set Final Reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "Slack: Send Message": {"main": [[{"node": "Set Slack Confirmation","type": "main","index": 0}]]},
+    "Set Slack Confirmation": {"main": [[{"node": "Set Final Reply","type": "main","index": 0}]]},
+    "IF Intent: Send WhatsApp Msg (Placeholder)": {
+      "main": [
+        [{"node": "HTTP Request: Send WhatsApp (Placeholder)","type": "main","index": 0}],
+        [{"node": "Set Final Reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "HTTP Request: Send WhatsApp (Placeholder)": {"main": [[{"node": "Set WhatsApp Confirmation","type": "main","index": 0}]]},
+    "Set WhatsApp Confirmation": {"main": [[{"node": "Set Final Reply","type": "main","index": 0}]]},
+    "IF Intent: Narrate Story": {
+        "main": [
+            [{"node": "Google Sheets: Get Story Text", "type": "main", "index": 0}],
+            [{"node": "Set Final Reply", "type": "main", "index": 0}]
+        ]
+    },
+    "Google Sheets: Get Story Text": {
+        "main": [[{"node": "IF Story Found", "type": "main", "index": 0}]]
+    },
+    "IF Story Found": {
+        "main": [
+            [{"node": "TTS: Convert Story to Speech", "type": "main", "index": 0}],
+            [{"node": "Set No Story Found Reply", "type": "main", "index": 0}]
+        ]
+    },
+    "TTS: Convert Story to Speech": {
+        "main": [[{"node": "Set Narration Data", "type": "main", "index": 0}]]
+    },
+    "Set Narration Data": {
+        "main": [[{"node": "Set Final Reply", "type": "main", "index": 0}]]
+    },
+    "Set No Story Found Reply": {
+        "main": [[{"node": "Set Final Reply", "type": "main", "index": 0}]]
+    },
+    "Set Final Reply": {"main": [[{"node": "Respond with AI Reply","type": "main","index": 0}]]}
+  },
+  "active": false,
+  "settings": {
+    "errorWorkflow": "YOUR_ERROR_WORKFLOW_ID_IF_ANY"
+  },
+  "id": "YOUR_ELLA_CHAT_WORKFLOW_ID_WILL_BE_GENERATED_HERE_GSHEETS"
+}

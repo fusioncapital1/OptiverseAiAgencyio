@@ -1,0 +1,198 @@
+
+{
+  "name": "Optiverse AI - Contact Form Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "webhook/optiverse/contact",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ],
+      "webhookId": "YOUR_N8N_WEBHOOK_ID_WILL_BE_GENERATED_HERE_CONTACT"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "name",
+              "value": "={{$json.body.name}}"
+            },
+            {
+              "name": "email",
+              "value": "={{$json.body.email}}"
+            },
+            {
+              "name": "message",
+              "value": "={{$json.body.message}}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{new Date().toISOString()}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Form Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SPREADSHEET_ID",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $('Webhook Trigger').item.json.query['sheetName'] || 'Contact Leads' }}",
+          "mode": "url"
+        },
+        "columns": {
+          "mappingMode": "manual",
+          "value": {
+            "A": "={{ $('Set Form Data').item.json.timestamp }}",
+            "B": "={{ $('Set Form Data').item.json.name }}",
+            "C": "={{ $('Set Form Data').item.json.email }}",
+            "D": "={{ $('Set Form Data').item.json.message }}"
+          }
+        },
+        "options": {
+          "valueInputMode": "RAW"
+        }
+      },
+      "name": "Log to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [
+        850,
+        150
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID_IN_N8N",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "to": "hello@optiverse.ai",
+        "subject": "New Contact Form Submission from {{$('Set Form Data').item.json.name}}",
+        "html": "=<div>\n<p>You have a new message from your Optiverse AI website contact form:</p>\n<p><strong>Name:</strong> {{$('Set Form Data').item.json.name}}</p>\n<p><strong>Email:</strong> <a href=\"mailto:{{$('Set Form Data').item.json.email}}\">{{$('Set Form Data').item.json.email}}</a></p>\n<p><strong>Message:</strong></p>\n<p>{{$('Set Form Data').item.json.message}}</p>\n<hr>\n<p><em>Received at: {{$('Set Form Data').item.json.timestamp}}</em></p>\n<p><em>This is an automated notification.</em></p>\n</div>",
+        "options": {}
+      },
+      "name": "Notify Agency",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID_IN_N8N",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "to": "={{$('Set Form Data').item.json.email}}",
+        "subject": "Thank You for Contacting Optiverse AI!",
+        "html": "=<div>\n<p>Hi {{$('Set Form Data').item.json.name}},</p>\n<p>Thank you for reaching out to Optiverse AI! We've received your message and one of our specialists will get back to you shortly.</p>\n<p>Here's a copy of your message:</p>\n<blockquote style=\"border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px;\">\n    <p>{{$('Set Form Data').item.json.message}}</p>\n</blockquote>\n<p>In the meantime, feel free to explore our services on our website: <a href=\"YOUR_WEBSITE_URL_HERE\">YOUR_WEBSITE_URL_HERE</a></p>\n<p>Best regards,<br>The Optiverse AI Team</p>\n</div>",
+        "options": {}
+      },
+      "name": "Send Auto-Responder",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        850,
+        450
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID_IN_N8N",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "data": "{\n  \"status\": \"success\",\n  \"message\": \"Form submission received. Thank you!\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Form Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Form Data": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Agency",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Auto-Responder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "id": "YOUR_WORKFLOW_ID_WILL_BE_GENERATED_HERE_CONTACT"
+}

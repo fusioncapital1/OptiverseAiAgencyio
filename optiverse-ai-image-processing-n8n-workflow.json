@@ -1,0 +1,629 @@
+
+{
+  "name": "Optiverse AI - Image Processing Workflow (Configurable AI)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "value": 1
+            }
+          ]
+        },
+        "custom": false
+      },
+      "name": "Interval Trigger (Adobe Stock Sim)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -200,
+        300
+      ],
+      "notes": "Simulates Adobe Stock trigger. Adjust interval as needed (e.g., 20 seconds by setting seconds value if node supports it, or use Cron for precise timing)."
+    },
+    {
+      "parameters": {
+        "url": "YOUR_IMAGE_SOURCE_API_URL",
+        "options": {}
+      },
+      "name": "Get Images (Metadata)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        0,
+        300
+      ],
+      "notes": "Fetches list of new images/videos. E.g., from Adobe Stock API or other source. Expects an array of items."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "operator": "and",
+          "conditions": [
+            {
+              "boolean": [
+                {
+                  "value1": "={{ $items().length > 0 }}",
+                  "value2": true
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "name": "Check if it has data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "name": "Split Out (Items)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [
+        400,
+        200
+      ],
+      "notes": "Processes each image item individually."
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.imageUrl }}",
+        "responseFormat": "file",
+        "options": {}
+      },
+      "name": "Download Images",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        600,
+        200
+      ],
+      "notes": "Downloads the image binary. Assumes input item has an 'imageUrl' field."
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "data",
+        "operations": [
+          {
+            "operation": "resize",
+            "width": 800,
+            "options": {}
+          }
+        ],
+        "options": {}
+      },
+      "name": "Comp Images (Resize for AI)",
+      "type": "n8n-nodes-base.image",
+      "typeVersion": 1,
+      "position": [
+        800,
+        100
+      ],
+      "notes": "Resizes image for potentially faster/cheaper AI analysis."
+    },
+    {
+      "parameters": {
+        "url": "YOUR_AI_API_ENDPOINT_URL_FOR_KOKORO_OR_GEMINI",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_AI_API_KEY_OR_SERVICE_TOKEN_FOR_KOKORO_OR_GEMINI"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "mode": "raw",
+          "rawModeData": "={{ JSON.stringify({\n  model: 'gemini-2.5-flash-preview-04-17', /* OR your Kokoro-82M model ID if applicable, OR remove if endpoint implies model */\n  contents: {\n    parts: [\n      { text: `Analyze this image. Provide a detailed description, 3-5 highly relevant keywords (tags), and a quality score (0-1, where 1 is highest quality). Return as JSON: {description: string, tags: string[], quality_score: number}.` },\n      { inlineData: { mimeType: $binary.data.mimeType || 'image/jpeg', data: $binary.data.base64 } }\n    ]\n  },\n  config: { responseMimeType: 'application/json' }\n  /* \n    IMPORTANT FOR KOKORO-82M or OTHER MODELS:\n    You MUST adapt the 'url', 'Authorization' header, and THIS ENTIRE 'bodyParameters' (rawModeData) \n    to match the specific API requirements of hexgrad/Kokoro-82M (or your chosen model).\n    The current body is an EXAMPLE for Google Gemini for image analysis.\n    Kokoro-82M might require a different JSON structure, different input fields (e.g., 'prompt', 'image_base64'),\n    or model parameters. Consult the documentation for Kokoro-82M.\n  */\n}) }}"
+        },
+        "options": {
+          "response": {
+            "fullResponse": false,
+            "responseFormat": "json"
+          }
+        }
+      },
+      "name": "AI Model Interaction (e.g., Gemini, Kokoro-82M)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1000,
+        100
+      ],
+      "notes": "This node performs AI image analysis or generation. \nCONFIGURE THIS NODE CAREFULLY for your chosen AI model (e.g., Google Gemini, hexgrad/Kokoro-82M, or another service).\n\n1.  **URL**: Set to your AI model's API endpoint (e.g., `YOUR_GEMINI_API_ENDPOINT_URL` or `YOUR_KOKORO_82M_HOSTED_ENDPOINT`).\n2.  **Authentication**: Update the 'Authorization' header with the correct API key or token for your service.\n3.  **Request Body (bodyParameters -> rawModeData)**: CRITICAL - You MUST modify the JSON structure here to match what your chosen AI model expects. The current example is for Gemini image analysis.\n    *   For Kokoro-82M: Check its API documentation for required fields (e.g., prompt, image input format, model parameters).\n    *   Input Image: The example uses `inlineData` with a base64 encoded image from `$binary.data.base64` (output of 'Comp Images' node). Your model might need the image differently (e.g., a URL, different key name).\n4.  **Response Format**: Ensure the 'responseFormat' in options is 'json' if your AI returns JSON. The 'Parse AI Response' node expects JSON.\n\nThe binary data for the image is taken from the 'Comp Images (Resize for AI)' node's output."
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "ai_response_text",
+              "value": "={{ $json.text || ($json.body && typeof $json.body === 'string' ? $json.body : JSON.stringify($json.body || {})) }}"
+            }
+          ]
+        },
+        "options": {
+            "parseJson": false
+        }
+      },
+      "name": "Prepare AI Response Text",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        100
+      ],
+      "notes": "Ensures the AI response text is available as a string for robust parsing. Handles cases where the response might be nested (e.g. some Gemini responses) or directly in the body as a string. The next 'Parse AI Response' node will attempt to parse this string as JSON."
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "ai_description",
+              "value": "={{ JSON.parse($('Prepare AI Response Text').item.json.ai_response_text).description || 'N/A' }}"
+            },
+            {
+              "name": "ai_quality_score",
+              "value": "={{ JSON.parse($('Prepare AI Response Text').item.json.ai_response_text).quality_score !== undefined ? JSON.parse($('Prepare AI Response Text').item.json.ai_response_text).quality_score : 'N/A' }}"
+            }
+          ],
+          "json": [
+             {
+                "name": "ai_tags",
+                "value": "={{ JSON.parse($('Prepare AI Response Text').item.json.ai_response_text).tags || [] }}"
+             }
+          ]
+        },
+        "options": {
+            "parseJson": false,
+            "continueOnFail": true
+        }
+      },
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        100
+      ],
+      "notes": "Extracts structured data from the AI's JSON response (which was prepared as text in the previous node).\nIMPORTANT: Adjust the expressions `JSON.parse(...).description`, `JSON.parse(...).tags`, etc., to match the actual JSON structure returned by YOUR chosen AI service (e.g., Gemini, Kokoro-82M).\nThe example assumes the AI was prompted to return a JSON like: `{description: string, tags: string[], quality_score: number}`.\nIf parsing fails or fields are missing, it will set default values (N/A or empty array)."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID_FOR_AI_LOGS",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "AI Analysis Log",
+          "mode": "url"
+        },
+        "columns": {
+          "mappingMode": "manual",
+          "value": {
+            "A": "={{ new Date().toISOString() }}",
+            "B": "={{ $('Download Images').item.json.fileName || $items('Download Images')[0].binary.data.fileName || 'N/A' }}",
+            "C": "={{ $('Parse AI Response').item.json.ai_description }}",
+            "D": "={{ $('Parse AI Response').item.json.ai_tags.join(', ') }}",
+            "E": "={{ $('Parse AI Response').item.json.ai_quality_score }}"
+          }
+        }
+      },
+      "name": "Google Sheets3 (Log AI Data)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [
+        1400,
+        100
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "number": [
+            {
+              "name": "item_index",
+              "value": "={{ $itemIndex }}"
+            }
+          ],
+          "string": [
+            {
+              "name": "image_id",
+              "value": "={{ $json.id || ($items('Download Images')[0].binary.data.fileName ? $items('Download Images')[0].binary.data.fileName.split('.')[0] : 'img_' + new Date().getTime() + '_' + $itemIndex) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Numbering",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        300
+      ],
+      "notes": "Adds an index or ID to the item. Tries to use original filename as part of ID."
+    },
+    {
+      "parameters": {
+        "binaryPropertyName": "data",
+        "operations": [
+          {
+            "operation": "resize",
+            "width": 1920,
+            "options": {
+              "fit": "inside",
+              "withoutEnlargement": true
+            }
+          }
+        ],
+        "options": {}
+      },
+      "name": "Resize Image X2 (Final)",
+      "type": "n8n-nodes-base.image",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        300
+      ],
+      "notes": "Creates the final version of the image for upload. Uses binary from 'Download Images'."
+    },
+    {
+      "parameters": {
+        "input1": {
+          "fields": [],
+          "options": {
+            "mode": "passThrough"
+          }
+        },
+        "input2": {
+          "fields": [],
+          "options": {
+            "mode": "passThrough"
+          }
+        },
+        "options": {
+          "mode": "mergeByIndex"
+        }
+      },
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        200
+      ],
+      "notes": "Merges data from the AI analysis path and the image processing path. Input 1 from 'Parse AI Response', Input 2 from 'Resize Image X2' (which should carry 'Numbering' data)."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input 0: Result from Parse AI Response node\n// Input 1: Result from Resize Image X2 (Final) node, which itself got data from Numbering and Download Images.\n\nconst aiData = $input.item.json.input_0;\nconst imageData = $input.item.json.input_1;\n\n// The binary data for upload should come from the 'Resize Image X2 (Final)' node's output.\n// The 'Upload Images (Google Drive)' node will use the binary data from its direct input item if 'binaryPropertyName' is set to 'data'.\n// The Merge node passes through the binary data from input 2 if input 1 doesn't have binary data on the 'data' property.\n\nreturn {\n  fileName: imageData.image_id + '_final.jpg',\n  description: aiData.ai_description,\n  tags: aiData.ai_tags,\n  image_id: imageData.image_id,\n  mimeType: imageData.mimeType || $items('Resize Image X2 (Final)')[0].binary.data.mimeType || 'image/jpeg',\n  binaryDataForUpload: $items('Resize Image X2 (Final)')[0].binary.data.base64 // Expose for clarity, though Upload node might pick it up automatically\n};"
+      },
+      "name": "Code4 (Prepare for Upload)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        200
+      ],
+      "notes": "Custom JavaScript logic. Prepares metadata for upload. The 'Upload Images' node should correctly pick up the binary data from the output of 'Resize Image X2 (Final)', which is passed through 'Merge Data' (as input_1's binary)."
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "upload",
+        "binaryPropertyName": "data",
+        "fileName": "={{ $('Code4 (Prepare for Upload)').item.json.fileName || 'uploaded_image.jpg' }}",
+        "destination": {
+          "type": "folderId",
+          "folderId": "YOUR_GOOGLE_DRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "name": "Upload Images (Google Drive)",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        200
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive Credential"
+        }
+      },
+      "notes": "Uploads the final image (binary from 'Resize Image X2 (Final)' path) to Google Drive. The Merge node should pass the binary from the correct branch."
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID_FOR_TRACKING",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Image Tracking",
+          "mode": "url"
+        },
+        "lookupColumn": "A",
+        "lookupValue": "={{ $('Code4 (Prepare for Upload)').item.json.image_id }}",
+        "columns": {
+          "mappingMode": "manual",
+          "value": {
+            "F": "={{ $('Upload Images (Google Drive)').item.json.webViewLink || $('Upload Images (Google Drive)').item.json.webContentLink || 'N/A' }}",
+            "G": "Uploaded"
+          }
+        }
+      },
+      "name": "Google Sheets4 (Update Status)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [
+        1800,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets Credential"
+        }
+      },
+      "notes": "Updates a master tracking sheet with the Google Drive link and status. Assumes 'image_id' is a unique identifier in Column A."
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=Image processed and uploaded: {{ $('Code4 (Prepare for Upload)').item.json.fileName }}\\nDescription: {{ $('Code4 (Prepare for Upload)').item.json.description }}\\nDrive Link: {{ $('Upload Images (Google Drive)').item.json.webViewLink || 'N/A' }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Telegram (Send Message)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        200
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_BOT_CREDENTIAL_ID",
+          "name": "Telegram Bot Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "length": 60,
+        "unit": "seconds"
+      },
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        400,
+        400
+      ],
+      "notes": "If no data, waits before the next trigger cycle (though Interval trigger handles this)."
+    }
+  ],
+  "connections": {
+    "Interval Trigger (Adobe Stock Sim)": {
+      "main": [
+        [
+          {
+            "node": "Get Images (Metadata)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Images (Metadata)": {
+      "main": [
+        [
+          {
+            "node": "Check if it has data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if it has data?": {
+      "main": [
+        [
+          {
+            "node": "Split Out (Items)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out (Items)": {
+      "main": [
+        [
+          {
+            "node": "Download Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Images": {
+      "main": [
+        [
+          {
+            "node": "Comp Images (Resize for AI)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Numbering",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comp Images (Resize for AI)": {
+      "main": [
+        [
+          {
+            "node": "AI Model Interaction (e.g., Gemini, Kokoro-82M)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+     "AI Model Interaction (e.g., Gemini, Kokoro-82M)": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI Response Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Response Text": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets3 (Log AI Data)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0 
+          }
+        ]
+      ]
+    },
+    "Numbering": {
+      "main": [
+        [
+          {
+            "node": "Resize Image X2 (Final)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resize Image X2 (Final)": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 1 
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "Code4 (Prepare for Upload)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code4 (Prepare for Upload)": {
+      "main": [
+        [
+          {
+            "node": "Upload Images (Google Drive)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Images (Google Drive)": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets4 (Update Status)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets4 (Update Status)": {
+      "main": [
+        [
+          {
+            "node": "Telegram (Send Message)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "errorWorkflow": "YOUR_ERROR_WORKFLOW_ID_IF_ANY"
+  },
+  "id": "optiverse-image-processing-workflow-configurable-ai"
+}
